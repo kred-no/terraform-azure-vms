@@ -1,4 +1,13 @@
 //////////////////////////////////
+// Helper variable(s)
+//////////////////////////////////
+
+locals {
+  // Generate list of VM instances
+  vm_list = formatlist("%s", range(0, var.cfg["vm_instances"]))
+}
+
+//////////////////////////////////
 // Parent Resources
 //////////////////////////////////
 
@@ -79,7 +88,7 @@ resource "azurerm_availability_set" "MAIN" {
 
 resource "azurerm_network_interface" "MAIN" {
   for_each = {
-    for idx,vm in vms: idx => vm
+    for idx,vm in local.vm_list: idx => vm
   }
 
   name                = join("-", [var.cfg["prefix], "nic", each.key])
@@ -99,7 +108,7 @@ resource "azurerm_network_interface" "MAIN" {
 
 resource "azurerm_linux_virtual_machine" "MAIN" {
   for_each = {
-    for idx,vm in vms: idx => vm
+    for idx,vm in local.vm_list: idx => vm
   }
 
   name                = join("-", [var.cfg["prefix], each.key])
