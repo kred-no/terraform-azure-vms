@@ -419,7 +419,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "MAIN" {
 
   lifecycle {
     replace_triggered_by = [
-      null_resource.REPLACE_VMSS
+      //null_resource.REPLACE_VMSS # Try fixing issue with changing & deleting backend pools & nat pools after initial deployment without destroying VMs.
     ]
   }
 }
