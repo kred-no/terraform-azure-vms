@@ -1,8 +1,8 @@
 # terraform-azure-vms
 
-Terraform module for deploying VM Scale-Set to an Azure subnet.
+Terraform module for deploying a Virtual Machine Scale-Set on Azure.
 
-Creates the following resources
+## Resource summary
 
 * Public Loadbalancer (optional)
 * Internal Loadbalancer (optional)
@@ -10,4 +10,5 @@ Creates the following resources
 * Loadbalancer rules (optional)
 * Network Security group (optional)
 * Network Security group rules (optional)
+* NAT Gateway (optional)
 * VM Scale-Set (optional)

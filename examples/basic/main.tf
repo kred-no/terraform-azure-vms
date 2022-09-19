@@ -32,6 +32,14 @@ resource "azurerm_resource_group" "ROOT" {
   location = local.location
 }
 
+resource "azurerm_virtual_network" "ROOT" {
+  name                = "demo-h8s"
+  address_space       = [local.address_space]
+  location            = azurerm_resource_group.ROOT.location
+  resource_group_name = azurerm_resource_group.ROOT.name
+
+}
+
 //////////////////////////////////
 // Module | Basic Example
 //////////////////////////////////
@@ -39,12 +47,13 @@ resource "azurerm_resource_group" "ROOT" {
 module "BASIC" {
   source = "./../../../terraform-azure-vms"
 
-  // Use "-target" to deploy depending resources first
-  resource_group = azurerm_resource_group.ROOT
+  // Use "-target azurerm_virtual_network.ROOT" to deploy root-resources first
+  resource_group  = azurerm_resource_group.ROOT
+  virtual_network = azurerm_virtual_network.ROOT
 
-  virtual_network = {
-    name          = "demo-h8s"
-    address_space = ["192.168.0.0/24"]
+  features = {
+    create_vmss      = false
+    create_lb_public = false
   }
 
   subnet = {
@@ -52,21 +61,12 @@ module "BASIC" {
     address_prefixes = toset([cidrsubnet(local.address_space, 3, 0)])
   }
 
-  features = {
-    create_vmss      = true
-    create_lb_public = false
-  }
-
-  vmss = {
-    #priority        = "Spot"
-    #eviction_policy = "Delete"
-  }
-/*
+  /*
   nat_pools = [{
     name                = "SSH"
     public              = true
     frontend_port_start = 50500
-    frontend_port_end   = 50505
+    frontend_port_end   = 50502
     backend_port        = 22
   }]*/
 }

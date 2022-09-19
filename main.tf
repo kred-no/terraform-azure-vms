@@ -1,7 +1,18 @@
 locals {
   frontend_ip_configuration_name = "LoadBalancerFEIP"
   backend_address_pool_name      = "LoadBalancerBEAP"
-  vmss_nic_name                  = "primary" //force replacement; lb-bug?
+  vmss_nic_name                  = "primary"
+}
+
+resource "null_resource" "REPLACE_VMSS" {
+  triggers = {
+    backend_change = base64encode(join("-", flatten([
+      [for item in azurerm_lb_nat_pool.INTERNAL : item.id],
+      [for item in azurerm_lb_nat_pool.PUBLIC : item.id],
+      [for item in azurerm_lb_backend_address_pool.INTERNAL : item.id],
+      [for item in azurerm_lb_backend_address_pool.PUBLIC : item.id],
+    ])))
+  }
 }
 
 //////////////////////////////////
@@ -9,7 +20,9 @@ locals {
 //////////////////////////////////
 
 resource "azurerm_resource_group" "MAIN" {
-  count = length(var.resource_group.id) > 0 ? 0 : 1
+  count = try(
+    length(var.resource_group.id) > 0, false
+  ) ? 0 : 1
 
   name     = var.resource_group.name
   location = var.resource_group.location
@@ -29,7 +42,9 @@ data "azurerm_resource_group" "MAIN" {
 //////////////////////////////////
 
 resource "azurerm_virtual_network" "MAIN" {
-  count = length(var.virtual_network.id) > 0 ? 0 : 1
+  count = try(
+    length(var.virtual_network.id) > 0, false
+  ) ? 0 : 1
 
   depends_on = [
     azurerm_resource_group.MAIN,
@@ -57,7 +72,9 @@ data "azurerm_virtual_network" "MAIN" {
 //////////////////////////////////
 
 resource "azurerm_subnet" "MAIN" {
-  count = length(var.subnet.id) > 0 ? 0 : 1
+  count = try(
+    length(var.subnet.id) > 0, false
+  ) ? 0 : 1
 
   depends_on = [
     azurerm_resource_group.MAIN,
@@ -221,7 +238,7 @@ resource "azurerm_lb_nat_pool" "INTERNAL" {
   frontend_port_start = each.value.frontend_port_start
   frontend_port_end   = each.value.frontend_port_end
   backend_port        = each.value.backend_port
-  
+
   frontend_ip_configuration_name = join("-", [local.frontend_ip_configuration_name, "internal"])
   loadbalancer_id                = one(azurerm_lb.INTERNAL.*.id)
   resource_group_name            = data.azurerm_resource_group.MAIN.name
@@ -320,11 +337,16 @@ resource "azurerm_lb_nat_pool" "PUBLIC" {
   frontend_port_start = each.value.frontend_port_start
   frontend_port_end   = each.value.frontend_port_end
   backend_port        = each.value.backend_port
-  
+
   frontend_ip_configuration_name = join("-", [local.frontend_ip_configuration_name, "public"])
   loadbalancer_id                = one(azurerm_lb.PUBLIC.*.id)
   resource_group_name            = data.azurerm_resource_group.MAIN.name
 }
+
+//////////////////////////////////
+// NAT Gateway
+//////////////////////////////////
+// TODO
 
 //////////////////////////////////
 // Virtual Machine Scale-Set
@@ -335,7 +357,12 @@ resource "azurerm_linux_virtual_machine_scale_set" "MAIN" {
     var.features.create_vmss,
     upper(var.vmss.os) == "LINUX",
   ]) ? 1 : 0
-  
+
+  depends_on = [
+    azurerm_lb_probe.INTERNAL,
+    azurerm_lb_probe.PUBLIC,
+  ]
+
   name                 = var.prefix
   computer_name_prefix = var.vmss.hostname
   sku                  = var.vmss.sku
@@ -362,8 +389,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "MAIN" {
   }
 
   network_interface {
-    name    = local.vmss_nic_name
-    primary = true
+    name                      = local.vmss_nic_name
+    primary                   = true
     network_security_group_id = one(azurerm_network_security_group.MAIN.*.id)
 
     ip_configuration {
@@ -376,13 +403,13 @@ resource "azurerm_linux_virtual_machine_scale_set" "MAIN" {
       ])
 
       load_balancer_backend_address_pool_ids = flatten([
-        [for bepool in azurerm_lb_backend_address_pool.INTERNAL: bepool.id],
-        [for bepool in azurerm_lb_backend_address_pool.PUBLIC: bepool.id],
+        [for bepool in azurerm_lb_backend_address_pool.INTERNAL : bepool.id],
+        [for bepool in azurerm_lb_backend_address_pool.PUBLIC : bepool.id],
       ])
 
       load_balancer_inbound_nat_rules_ids = flatten([
-        [for natpool in azurerm_lb_nat_pool.INTERNAL: natpool.id ],
-        [for natpool in azurerm_lb_nat_pool.PUBLIC: natpool.id ],
+        [for natpool in azurerm_lb_nat_pool.INTERNAL : natpool.id],
+        [for natpool in azurerm_lb_nat_pool.PUBLIC : natpool.id],
       ])
     }
   }
@@ -391,6 +418,8 @@ resource "azurerm_linux_virtual_machine_scale_set" "MAIN" {
   location            = data.azurerm_resource_group.MAIN.location
 
   lifecycle {
-    replace_triggered_by = []
+    replace_triggered_by = [
+      null_resource.REPLACE_VMSS
+    ]
   }
 }

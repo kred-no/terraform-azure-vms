@@ -3,7 +3,7 @@
 //////////////////////////////////
 
 variable "resource_group" {
-  description = ""
+  description = "Resource group to use. If 'id' is present, then resource is not created."
 
   type = object({
     name     = string
@@ -13,7 +13,7 @@ variable "resource_group" {
 }
 
 variable "virtual_network" {
-  description = ""
+  description = "Virtual Network to use. If 'id' is present, then resource is not created."
 
   type = object({
     name          = string
@@ -23,7 +23,7 @@ variable "virtual_network" {
 }
 
 variable "subnet" {
-  description = ""
+  description = "Subnet to use. If 'id' is present, then resource is not created."
 
   type = object({
     name             = string
@@ -37,34 +37,45 @@ variable "subnet" {
 //////////////////////////////////
 
 variable "prefix" {
-  description = ""
+  description = "Prefix for module resources in the the resource group."
 
   type    = string
-  default = "tfvmss"
+  default = "tfvm"
 }
 
 variable "features" {
-  description = ""
+  description = <<-HEREDOC
+  Configure the module features.
+  
+  * create_nsg: true | (false)
+    |- Create and assign a Network Security Group for the scale-set.
+  * create_lb_internal:  true | (false)
+    |- Create and assign an internal load-balancer for the scale-set.
+  * create_lb_public: true | (false)
+    |- Create and assign a public load-balancer for the scale-set (incl. a public IP-address).
+  * create_vmss: (true) | false
+    |- Create the scale-set VMs.
+  HEREDOC
 
   type = object({
     create_nsg         = optional(bool, false)
     create_lb_internal = optional(bool, false)
     create_lb_public   = optional(bool, false)
-    create_vmss        = optional(bool, false)
+    create_vmss        = optional(bool, true)
   })
 
   default = {}
 }
 
 variable "tags" {
-  description = ""
+  description = "Tags to assign module resources in the resource group."
 
   type    = map(string)
   default = {}
 }
 
 variable "nsg_rules" {
-  description = ""
+  description = "Rules for the VMSS Network Security Group (if enabled)."
 
   type = set(object({
     name                         = string
@@ -86,7 +97,7 @@ variable "nsg_rules" {
 }
 
 variable "lb_rules" {
-  description = ""
+  description = "Rules for the load-balancer(s), if enabled. 'internal' & 'external' assigns to corresponding load-balancer."
 
   type = set(object({
     name               = string
@@ -108,35 +119,35 @@ variable "lb_rules" {
 
 
 variable "nat_pools" {
-  description = ""
+  description = "NAT Pools for the load-balancer(s), if enabled. 'internal' & 'external' assigns to corresponding load-balancer."
 
   type = list(object({
     name                = string
     internal            = optional(bool, false)
     public              = optional(bool, false)
+    protocol            = optional(string, "Tcp")
     frontend_port_start = number
     frontend_port_end   = number
     backend_port        = number
-    protocol            = optional(string, "Tcp")
   }))
 
   default = []
 }
 
 variable "vmss" {
-  description = ""
+  description = "Customize the VM Scale-Set."
 
   type = object({
     os              = optional(string, "linux")
-    hostname        = optional(string)
     sku             = optional(string, "Standard_B1ms")
-    instances       = optional(number, 1)
     admin_username  = optional(string, "batman")
     admin_password  = optional(string, "TheB@tM0bile")
+    instances       = optional(number, 1)
+    overprovision   = optional(bool, false)
+    hostname        = optional(string)
     priority        = optional(string)
     eviction_policy = optional(string)
     max_bid_price   = optional(number)
-    overprovision   = optional(bool)
     image_publisher = optional(string, "Debian")
     image_offer     = optional(string, "debian-11")
     image_sku       = optional(string, "11")
